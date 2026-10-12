@@ -150,6 +150,31 @@ jobs:
         working-directory: wine
         run: bash build-scripts/build-step-arm64ec.sh --build-sysvshm
 
+      # proton_11.0-2 links ntdll.so against userspace ntsync (libntsync_android.a,
+      # a Rust project). The driver's unixlib depends on ntdll.so, so it must exist.
+      - name: Checkout ntsync-android (Wine 11)
+        if: matrix.abi == 'wine11'
+        uses: actions/checkout@v4
+        with:
+          repository: GameNative/ntsync-android
+          path: ntsync-android
+
+      - name: Set up Rust for ntsync-android (Wine 11)
+        if: matrix.abi == 'wine11'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android, x86_64-linux-android
+
+      - name: Build ntsync-android (Wine 11)
+        if: matrix.abi == 'wine11'
+        working-directory: wine
+        env:
+          NTSYNC_ANDROID_DIR: ${{ github.workspace }}/ntsync-android
+        run: |
+          bash build-scripts/build-step-arm64ec.sh --build-ntsync-android
+          # The script only warns on failure; fail here instead of at the ntdll link.
+          test -f "$HOME/termuxfs/aarch64/data/data/com.termux/files/usr/lib/libntsync_android.a"
+
       - name: Configure + build ONLY the DirectAudio driver
         working-directory: wine
         shell: bash

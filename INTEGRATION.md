@@ -63,9 +63,7 @@ Produces the hot-swap pair: `winedirectaudio.drv` (arm64ec PE) + `winedirectaudi
 
 ## Automated integration (CI)
 
-`ci/integrate-into-wine.sh <driver-dir> <wine-tree> <wine10|wine11>` performs steps 1–2
-(minus the cosmetic warning guard) on a clean tree such as GameNative/proton-wine
-`proton_10.0` / `proton_11.0-2`, before `autogen.sh`. For `wine10` it copies the PE side
-from `wine10/` (`mmdevdrv.c`, `winedirectaudio.drv.spec`, and a `Makefile.in` that defines
-`WINE_MMDEVAPI_NO_MIDI_GET_DRIVER`, since Wine 10's mmdevapi has no `midi_get_driver` slot).
-`dlls/mmdevapi/main.c` is left untouched: the host app selects the driver via the registry.
+`ci/integrate-into-wine.sh <driver-dir> <wine-tree>` performs steps 1–2 (minus the
+cosmetic warning guard) on a clean Wine 11 tree — GameNative/proton-wine `proton_11.0-2` —
+before `autogen.sh`. Only the Wine 11 ABI is built. `dlls/mmdevapi/main.c` is left
+untouched: the host app selects the driver via the registry.

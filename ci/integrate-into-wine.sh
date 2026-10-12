@@ -1,39 +1,23 @@
 #!/bin/bash
-# Drops DirectAudio into a clean (DirectAudio-unaware) Wine/Proton tree, e.g.
-# GameNative/proton-wine proton_10.0 / proton_11.0-2. Run BEFORE autogen.sh so
-# the configure.ac changes below are picked up by autoreconf.
+# Drops DirectAudio into a clean (DirectAudio-unaware) Wine 11 tree, i.e.
+# GameNative/proton-wine proton_11.0-2. Run BEFORE autogen.sh so the configure.ac
+# changes below are picked up by autoreconf.
 #
-#   ci/integrate-into-wine.sh <driver-repo-dir> <wine-tree-dir> <wine10|wine11>
+#   ci/integrate-into-wine.sh <driver-repo-dir> <wine-tree-dir>
 #
 # Idempotent: re-running on an already integrated tree changes nothing.
 set -euo pipefail
 
 DRIVER=$(cd "$1" && pwd)
 WINE=$(cd "$2" && pwd)
-ABI=$3
 DST="$WINE/dlls/winedirectaudio.drv"
 AC="$WINE/configure.ac"
 
 # --- 1. driver sources ------------------------------------------------------
-# Wine 11: the .drv is a generic unixlib host, so the unix implementation is the
-# whole driver. Wine 10: mmdevapi also resolves get_device_guid /
-# get_device_name_from_guid on the PE, so the PE side (mmdevdrv.c + .spec) and a
-# Makefile.in listing both sources come from wine10/.
+# Wine 11: the .drv is a generic unixlib host, so the unix implementation and its
+# Makefile.in are the whole driver.
 mkdir -p "$DST"
-cp -v "$DRIVER/directaudio.c" "$DST/"
-case "$ABI" in
-    wine11)
-        cp -v "$DRIVER/Makefile.in" "$DST/"
-        ;;
-    wine10)
-        cp -v "$DRIVER/wine10/Makefile.in" "$DRIVER/wine10/mmdevdrv.c" \
-              "$DRIVER/wine10/winedirectaudio.drv.spec" "$DST/"
-        ;;
-    *)
-        echo "unknown ABI '$ABI' (expected wine10 or wine11)" >&2
-        exit 1
-        ;;
-esac
+cp -v "$DRIVER/directaudio.c" "$DRIVER/Makefile.in" "$DST/"
 
 # --- 2. configure.ac --------------------------------------------------------
 if grep -q 'dlls/winedirectaudio.drv' "$AC"; then

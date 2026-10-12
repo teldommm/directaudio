@@ -41,22 +41,24 @@ if grep -q 'dlls/winedirectaudio.drv' "$AC"; then
     exit 0
 fi
 
+# The regex goes through ENVIRON, not awk -v: -v processes escapes, so gawk would
+# turn \( into ( and reject the pattern.
 # Insert $2 (a file) after the first line matching regex $1; fail if no match,
 # so a moved anchor breaks the build loudly instead of silently skipping.
 insert_after() {
     local pattern=$1 snippet=$2
     grep -qE "$pattern" "$AC" || { echo "anchor not found in configure.ac: $pattern" >&2; exit 1; }
-    awk -v pat="$pattern" -v file="$snippet" '
+    PAT=$pattern awk -v file="$snippet" '
         { print }
-        !done && $0 ~ pat { while ((getline line < file) > 0) print line; done = 1 }
+        !done && $0 ~ ENVIRON["PAT"] { while ((getline line < file) > 0) print line; done = 1 }
     ' "$AC" > "$AC.tmp" && mv "$AC.tmp" "$AC"
 }
 # Insert $2 before the first line matching regex $1.
 insert_before() {
     local pattern=$1 snippet=$2
     grep -qE "$pattern" "$AC" || { echo "anchor not found in configure.ac: $pattern" >&2; exit 1; }
-    awk -v pat="$pattern" -v file="$snippet" '
-        !done && $0 ~ pat { while ((getline line < file) > 0) print line; done = 1 }
+    PAT=$pattern awk -v file="$snippet" '
+        !done && $0 ~ ENVIRON["PAT"] { while ((getline line < file) > 0) print line; done = 1 }
         { print }
     ' "$AC" > "$AC.tmp" && mv "$AC.tmp" "$AC"
 }

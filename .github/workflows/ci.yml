@@ -1,21 +1,24 @@
 name: build driver (arm64ec hot-swap artifacts)
 
-# Builds ONLY dlls/winedirectaudio.drv against a pinned proton-wine tree,
-# reusing that repo's exact bionic/arm64ec toolchain (NDK r27d + bylaws
-# llvm-mingw). Produces the hot-swap pair the device Proton layer wants:
-#   winedirectaudio.drv  (arm64ec PE)   +   winedirectaudio.so  (unixlib)
-# for BOTH Wine ABIs (Wine 11.0 and Wine 10.0) and BOTH page sizes
-# (4KB/SDK28, 16KB/SDK35) — a 2x2 matrix, 4 artifacts total. The ABI is
-# entirely determined by which proton-wine ref each matrix entry pins:
-#   * Wine 11  -> ge-proton11-bionic (winedirectaudio.drv is a real
-#     in-tree dir; overlay directaudio.c + Makefile.in from this repo).
-#   * Wine 10  -> proton_10.0 (winedirectaudio.drv is a SUBMODULE pinned to the
-#     exact Wine-10 PE side P10-4 shipped: mmdevdrv.c + winedirectaudio.drv.spec
-#     + a Makefile.in listing both sources. `submodules: recursive` populates it;
-#     we overlay ONLY the shared unix implementation directaudio.c and keep the
-#     pinned PE side/Makefile so the artifact is ABI-identical to P10-4).
-# On a directaudio-v* tag all 4 attach to a GitHub release. On-device audio is
-# verified separately.
+# Builds ONLY dlls/winedirectaudio.drv against a clean GameNative/proton-wine tree,
+# reusing that repo's own bionic/arm64ec toolchain scripts (NDK r27d + bylaws
+# llvm-mingw). The tree knows nothing about DirectAudio: ci/integrate-into-wine.sh
+# drops the driver in and wires configure.ac (AAudio check + makefile) before autogen.
+#
+# Produces the 3-file hot-swap set per variant:
+#   aarch64-windows/winedirectaudio.drv (arm64ec PE) + i386-windows/winedirectaudio.drv
+#   + aarch64-unix/winedirectaudio.so (bionic unixlib)
+#
+# Variants (the unixlib ABI is fixed by the Wine major the tree is built from):
+#   * wine11-arm64ec       <- proton_11.0-2. Its build script always targets SDK 28
+#                             with 16 KB-aligned segments, so ONE build serves both
+#                             4 KB and 16 KB page kernels.
+#   * wine10-arm64ec-sdk28 <- proton_10.0, 4 KB-page devices
+#   * wine10-arm64ec-sdk35 <- proton_10.0 --enable-16kb-pages, 16 KB-page devices
+# Wine 10 also needs the PE side (wine10/: mmdevdrv.c + .spec + Makefile.in that
+# defines WINE_MMDEVAPI_NO_MIDI_GET_DRIVER). The C_ASSERTs on the unixlib tables in
+# directaudio.c fail the build if the ABI ever drifts from the tree's mmdevapi.
+# On a directaudio-v* tag all artifacts attach to a GitHub release.
 
 on:
   push:
@@ -25,7 +28,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROTON_REPO: The412Banner/proton-wine
+  PROTON_REPO: GameNative/proton-wine
 
 jobs:
   build:
@@ -34,22 +37,15 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Wine 11.0 ABI (ge-proton11-bionic; was ge-proton11-5-bionic-staging,
-          # which upstream deleted - repointed to the current bionic staging branch)
-          - label: wine11-arm64ec-sdk28    # 4KB-page devices
+          - label: wine11-arm64ec          # 4 KB + 16 KB page devices
             abi: wine11
-            proton_ref: ge-proton11-bionic
+            proton_ref: proton_11.0-2
             page_flag: ""
-          - label: wine11-arm64ec-sdk35    # 16KB-page devices
-            abi: wine11
-            proton_ref: ge-proton11-bionic
-            page_flag: "--enable-16kb-pages"
-          # Wine 10.0 ABI (proton_10.0 — the tree P10-4 shipped from)
-          - label: wine10-arm64ec-sdk28    # 4KB-page devices
+          - label: wine10-arm64ec-sdk28    # 4 KB-page devices
             abi: wine10
             proton_ref: proton_10.0
             page_flag: ""
-          - label: wine10-arm64ec-sdk35    # 16KB-page devices
+          - label: wine10-arm64ec-sdk35    # 16 KB-page devices
             abi: wine10
             proton_ref: proton_10.0
             page_flag: "--enable-16kb-pages"
@@ -59,40 +55,23 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
           df -h | head -2
 
-      - name: Checkout pinned Wine tree (proton-wine)
+      - name: Checkout Wine tree (GameNative/proton-wine ${{ matrix.proton_ref }})
         uses: actions/checkout@v4
         with:
           repository: ${{ env.PROTON_REPO }}
           ref: ${{ matrix.proton_ref }}
           path: wine
-          submodules: recursive   # Wine-10: populates the winedirectaudio.drv submodule (PE side)
 
       - name: Checkout this driver (source under test)
         uses: actions/checkout@v4
         with:
           path: driver
 
-      - name: Overlay driver source into the Wine tree
+      - name: Integrate DirectAudio into the Wine tree
         run: |
-          set -e
-          if [ "${{ matrix.abi }}" = "wine11" ]; then
-            # Wine 11: mmdevapi loads the driver via the unixlib (no PE-side GUID
-            # exports). Overlay the shared unix implementation + its Makefile.
-            cp -v driver/directaudio.c driver/Makefile.in wine/dlls/winedirectaudio.drv/
-          else
-            # Wine 10: the pinned proton_10.0 submodule already carries the exact
-            # Wine-10 PE side P10-4 shipped (mmdevdrv.c + winedirectaudio.drv.spec +
-            # a Makefile.in listing both sources). Trust it to avoid ABI drift;
-            # overlay ONLY the shared unix implementation under test.
-            test -f wine/dlls/winedirectaudio.drv/mmdevdrv.c            # submodule populated?
-            test -f wine/dlls/winedirectaudio.drv/winedirectaudio.drv.spec
-            grep -q 'mmdevdrv\.c' wine/dlls/winedirectaudio.drv/Makefile.in  # PE side wired in
-            cp -v driver/directaudio.c wine/dlls/winedirectaudio.drv/
-          fi
+          bash driver/ci/integrate-into-wine.sh driver wine ${{ matrix.abi }}
           echo "--- winedirectaudio.drv sources for ${{ matrix.label }} ---"
           ls -la wine/dlls/winedirectaudio.drv/
-          # Integration deltas (configure.ac + mmdevapi default_list) already live in
-          # the pinned proton-wine ref; nothing to patch here.
 
       - name: Set up build environment
         run: |
@@ -141,13 +120,11 @@ jobs:
       - name: Autogen
         working-directory: wine
         run: |
-          if [ "${{ matrix.abi }}" = "wine11" ]; then
-            # Wine 11 wrapper: applies server_protocol.def.patch, then ./autogen.sh
-            bash build-scripts/build-step0-autogen.sh
-          else
-            # Wine 10 (proton_10.0) has no build-step0-autogen.sh; its own build
-            # workflows autogen via ./autogen.sh --aarch64 — mirror that exactly.
+          if [ "${{ matrix.abi }}" = "wine10" ]; then
+            # proton_10.0: --aarch64 also applies its Android configure.ac patch.
             bash autogen.sh --aarch64
+          else
+            bash autogen.sh
           fi
 
       - name: Cache wine-tools
@@ -180,7 +157,7 @@ jobs:
           set -eo pipefail
           # `source` so the arm64ec toolchain env the script exports (CC/CFLAGS/
           # CROSSCFLAGS/PATH/DLLTOOL/…) persists into this shell for the targeted
-          # make below. The script also applies the bionic + GE patches + configures.
+          # make below. The script also configures and applies GameNative's Android patches.
           source build-scripts/build-step-arm64ec.sh ${{ matrix.page_flag }} --configure
           # Discover the exact build targets from the generated Makefile. PE files
           # live in a per-arch subdir ({aarch64,i386}-windows/); the unixlib .so sits
@@ -192,7 +169,11 @@ jobs:
           # Wine 11 tree has no such bare reference, so its target set is unchanged.
           mapfile -t TGTS < <(grep -oE "dlls/winedirectaudio\.drv/([A-Za-z0-9_-]+-windows/winedirectaudio\.drv|winedirectaudio\.so)" Makefile | sort -u)
           echo "discovered targets:"; printf '  %s\n' "${TGTS[@]}"
-          test "${#TGTS[@]}" -ge 2   # expect at least the PE + the unixlib
+          if [ "${#TGTS[@]}" -lt 2 ]; then   # expect at least the PE + the unixlib
+            echo "::error::winedirectaudio.drv not enabled - check 'aaudio/AAudio.h' in the configure output"
+            grep -n "AAudio" config.log | head -20 || true
+            exit 1
+          fi
           echo "::group::make driver"
           make -j"$(nproc)" "${TGTS[@]}"
           echo "::endgroup::"
@@ -246,7 +227,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
-      - name: Stage per-page-size zips
+      - name: Stage per-variant zips
         run: |
           set -e
           mkdir -p release
@@ -261,7 +242,7 @@ jobs:
           files: release/*
           body: |
             **DirectAudio hot-swap driver** — native Wine → Android AAudio (`winedirectaudio.drv`).
-            Two Wine ABIs × two page sizes. Each zip is the **complete 3-file driver set**,
+            Two Wine ABIs. Each zip is the **complete 3-file driver set**,
             laid out to drop straight onto the device Proton layer's `lib/wine/`:
             - `aarch64-windows/winedirectaudio.drv` — arm64ec PE, loaded for **64-bit** guest games
             - `i386-windows/winedirectaudio.drv` — 32-bit PE, loaded for **32-bit** guest games
@@ -269,13 +250,12 @@ jobs:
 
             Which PE loads is decided by the **guest game's bitness**, not the device — a
             complete set carries both so either game type gets audio. Match the ABI to the
-            layer's Wine version and the page size (sdk28 = 4KB, sdk35 = 16KB) to the device.
+            layer's Wine version; for Wine 10 also match the page size (sdk28 = 4KB, sdk35 = 16KB).
 
-            **Wine 11.0** (`ge-proton11-bionic`) — overlay onto Wine-11 layers:
-            - `directaudio-wine11-arm64ec-sdk28.zip` — 4KB-page devices
-            - `directaudio-wine11-arm64ec-sdk35.zip` — 16KB-page devices
+            **Wine 11.0** (GameNative `proton_11.0-2`) — one build for 4KB and 16KB-page devices:
+            - `directaudio-wine11-arm64ec.zip`
 
-            **Wine 10.0** (`proton_10.0`, the tree Proton 10.0-4 shipped from) — overlay onto Wine-10.x layers:
+            **Wine 10.0** (GameNative `proton_10.0`):
             - `directaudio-wine10-arm64ec-sdk28.zip` — 4KB-page devices
             - `directaudio-wine10-arm64ec-sdk35.zip` — 16KB-page devices
         env:

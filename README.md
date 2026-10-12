@@ -77,7 +77,7 @@ A fixed buffer is the wrong shape for this problem. Too small and a game under b
 
 In practice this means the driver converges on the lowest buffer each title can actually hold. Five of the seven games above sat on the hardware floor; God of War (the heaviest CPU load in the set) settled at 8 ms and DiRT 3 at 12 ms — all three with **zero underruns**.
 
-Set `BANNER_AUDIO_DIRECT_ADAPTIVE=0` to pin the buffer instead. Only do this if you are chasing a fixed minimum and accept crackle when a title can't hold it.
+Set `WINLITE_AUDIO_DIRECT_ADAPTIVE=0` to pin the buffer instead. Only do this if you are chasing a fixed minimum and accept crackle when a title can't hold it.
 
 ---
 
@@ -116,7 +116,7 @@ This is event-level only — a handful of lines per session. Per-callback heartb
 
 **Verified:** D3D9 / D3D11 / D3D12+VKD3D, and WASAPI / FAudio / XAudio2 / DirectSound. Tested on a single device (Adreno 750, Android 14) — **Mali GPUs are untested**.
 
-**Microphone capture (`BANNER_AUDIO_DIRECT_MIC=1`, off by default).** A WASAPI capture endpoint backed by an AAudio `INPUT` stream (48 kHz / float / stereo, `VOICE_COMMUNICATION` preset for platform echo-cancel / noise-suppress / auto-gain) so a Windows game can record the Android mic — e.g. Source-engine voice chat through the genuine Steam voice API. It is the mirror of the render mixer: one shared input stream, opened lazily on the first capture stream and started only on the first `Start`, distributing captured PCM to each capture voice. **Default off is byte-identical to the render-only build** — zero capture endpoints, every capture op `AUDCLNT_E_DEVICE_INVALIDATED` — because a capture endpoint a game can enumerate but not open black-screens titles that probe the mic at startup (God of War, DiRT 3). Turn it on only for a title that wants the mic. **Device-proven** on the Adreno 750 (Android 14): a real 48 kHz mono-mic recording captured through the driver, and TF2's in-game Options → Voice "Test Microphone" meter responding to live input. **Not yet validated:** a real 2-player online voice round-trip, and the input stream's effect on the output latency floor (monitor).
+**Microphone capture (`WINLITE_AUDIO_DIRECT_MIC=1`, off by default).** A WASAPI capture endpoint backed by an AAudio `INPUT` stream (48 kHz / float / stereo, `VOICE_COMMUNICATION` preset for platform echo-cancel / noise-suppress / auto-gain) so a Windows game can record the Android mic — e.g. Source-engine voice chat through the genuine Steam voice API. It is the mirror of the render mixer: one shared input stream, opened lazily on the first capture stream and started only on the first `Start`, distributing captured PCM to each capture voice. **Default off is byte-identical to the render-only build** — zero capture endpoints, every capture op `AUDCLNT_E_DEVICE_INVALIDATED` — because a capture endpoint a game can enumerate but not open black-screens titles that probe the mic at startup (God of War, DiRT 3). Turn it on only for a title that wants the mic. **Device-proven** on the Adreno 750 (Android 14): a real 48 kHz mono-mic recording captured through the driver, and TF2's in-game Options → Voice "Test Microphone" meter responding to live input. **Not yet validated:** a real 2-player online voice round-trip, and the input stream's effect on the output latency floor (monitor).
 
 **Not yet supported:** true multichannel output (everything is downmixed to stereo).
 
@@ -176,24 +176,24 @@ attach:
 
 | variable | meaning |
 |---|---|
-| `BANNER_AUDIO_DIRECT_PERF` | `0` NONE · `1` LOW_LATENCY *(default)* · `2` POWER_SAVING |
-| `BANNER_AUDIO_DIRECT_ADAPTIVE` | `1` adaptive growth *(default)* · `0` fixed buffer |
-| `BANNER_AUDIO_DIRECT_DECAY` | `1` reclaim latency when calm *(default)* · `0` grow-only |
-| `BANNER_AUDIO_DIRECT_BF` | initial buffer in frames (`0` = use the shipped default) |
-| `BANNER_AUDIO_DIRECT_MBF` | growth ceiling in frames (`0` = use the shipped default) |
-| `BANNER_AUDIO_DIRECT_MS` | initial buffer in **milliseconds** *(default 12 → 33 ms total)* — wins over `_BF` |
-| `BANNER_AUDIO_DIRECT_MAXMS` | growth ceiling in **milliseconds** *(default 100)* — wins over `_MBF` |
-| `BANNER_AUDIO_DIRECT_PERIOD_MS` | device period reported to the guest *(default 10)* |
-| `BANNER_AUDIO_DIRECT_MINPERIOD_MS` | minimum period reported to the guest *(default 5)* |
-| `BANNER_AUDIO_DIRECT_EXCLUSIVE` | `1` request an EXCLUSIVE AAudio stream · `0` SHARED *(default)* |
-| `BANNER_AUDIO_DIRECT_WATCHDOG` | `1` dead-callback watchdog *(default)* · `0` off |
-| `BANNER_AUDIO_DIRECT_MIC` | `1` expose a microphone (AAudio `INPUT`) capture endpoint · `0` no capture endpoint *(default)* |
-| `BANNER_AUDIO_DIRECT_STALL_MS` | callback silence before a rebuild *(default 1000)* |
-| `BANNER_AUDIO_DIRECT_DECAY_QUIET_MS` | calm required before a step down *(default 10000)* |
-| `BANNER_AUDIO_DIRECT_DECAY_PUNISH_MS` | window in which an underrun blames the last step *(default 5000)* |
-| `BANNER_AUDIO_DIRECT_DECAY_MAXBACKOFF` | cap on the quiet-period multiplier *(default 32)* |
-| `BANNER_AUDIO_DIRECT_LOG` | `1` verbose logcat on a **release** build *(default 0)* |
-| `BANNER_AUDIO_DIRECT_RUNTIME` | path to a live-config "mailbox" file the host rewrites in-game *(unset = off)* — see below |
+| `WINLITE_AUDIO_DIRECT_PERF` | `0` NONE · `1` LOW_LATENCY *(default)* · `2` POWER_SAVING |
+| `WINLITE_AUDIO_DIRECT_ADAPTIVE` | `1` adaptive growth *(default)* · `0` fixed buffer |
+| `WINLITE_AUDIO_DIRECT_DECAY` | `1` reclaim latency when calm *(default)* · `0` grow-only |
+| `WINLITE_AUDIO_DIRECT_BF` | initial buffer in frames (`0` = use the shipped default) |
+| `WINLITE_AUDIO_DIRECT_MBF` | growth ceiling in frames (`0` = use the shipped default) |
+| `WINLITE_AUDIO_DIRECT_MS` | initial buffer in **milliseconds** *(default 12 → 33 ms total)* — wins over `_BF` |
+| `WINLITE_AUDIO_DIRECT_MAXMS` | growth ceiling in **milliseconds** *(default 100)* — wins over `_MBF` |
+| `WINLITE_AUDIO_DIRECT_PERIOD_MS` | device period reported to the guest *(default 10)* |
+| `WINLITE_AUDIO_DIRECT_MINPERIOD_MS` | minimum period reported to the guest *(default 5)* |
+| `WINLITE_AUDIO_DIRECT_EXCLUSIVE` | `1` request an EXCLUSIVE AAudio stream · `0` SHARED *(default)* |
+| `WINLITE_AUDIO_DIRECT_WATCHDOG` | `1` dead-callback watchdog *(default)* · `0` off |
+| `WINLITE_AUDIO_DIRECT_MIC` | `1` expose a microphone (AAudio `INPUT`) capture endpoint · `0` no capture endpoint *(default)* |
+| `WINLITE_AUDIO_DIRECT_STALL_MS` | callback silence before a rebuild *(default 1000)* |
+| `WINLITE_AUDIO_DIRECT_DECAY_QUIET_MS` | calm required before a step down *(default 10000)* |
+| `WINLITE_AUDIO_DIRECT_DECAY_PUNISH_MS` | window in which an underrun blames the last step *(default 5000)* |
+| `WINLITE_AUDIO_DIRECT_DECAY_MAXBACKOFF` | cap on the quiet-period multiplier *(default 32)* |
+| `WINLITE_AUDIO_DIRECT_LOG` | `1` verbose logcat on a **release** build *(default 0)* |
+| `WINLITE_AUDIO_DIRECT_RUNTIME` | path to a live-config "mailbox" file the host rewrites in-game *(unset = off)* — see below |
 
 Everything is read once — the per-stream knobs at stream open, the period,
 watchdog, decay and log settings at process attach (the guest asks for the
@@ -208,7 +208,7 @@ Put this in the game's environment (in Bannerlator: the shortcut's **Environment
 Variables** box — per-game, and it survives relaunches):
 
 ```
-BANNER_AUDIO_DIRECT_MS=8 BANNER_AUDIO_DIRECT_MAXMS=60
+WINLITE_AUDIO_DIRECT_MS=8 WINLITE_AUDIO_DIRECT_MAXMS=60
 ```
 
 That is the whole thing. `_MS` is the buffer the stream opens at **and the floor decay returns to** —
@@ -242,7 +242,7 @@ period — `get_latency` returns buffer + period, and games size their own buffe
 from the period the driver reports. It defaults to 10 ms and is now settable:
 
 ```
-BANNER_AUDIO_DIRECT_PERIOD_MS=5 BANNER_AUDIO_DIRECT_MINPERIOD_MS=5
+WINLITE_AUDIO_DIRECT_PERIOD_MS=5 WINLITE_AUDIO_DIRECT_MINPERIOD_MS=5
 ```
 
 Lowering it makes the guest write smaller chunks more often. That is a real
@@ -253,15 +253,15 @@ period to exceed the default one.
 
 #### Live in-game config (the mailbox)
 
-The driver reads its config from the env at stream open, which means a host UI change would normally need a relaunch. `BANNER_AUDIO_DIRECT_RUNTIME=<path>` opts into live control: it names a flat `KEY=VALUE` file the host rewrites while the game runs. A lazy 1-second watcher thread (off the audio path) `stat`s it and, on change, re-reads and rebuilds the stream from the existing reopen worker — so a setting change lands **without relaunch** (~77 ms swap, inaudible). Keys are `MS` / `MAXMS` (milliseconds) and `PERF` (`0/1/2`, same encoding as `_PERF`); values ≤ 0 or an absent key revert to the launch config. Unset `_RUNTIME` = off, and the driver behaves exactly as before.
+The driver reads its config from the env at stream open, which means a host UI change would normally need a relaunch. `WINLITE_AUDIO_DIRECT_RUNTIME=<path>` opts into live control: it names a flat `KEY=VALUE` file the host rewrites while the game runs. A lazy 1-second watcher thread (off the audio path) `stat`s it and, on change, re-reads and rebuilds the stream from the existing reopen worker — so a setting change lands **without relaunch** (~77 ms swap, inaudible). Keys are `MS` / `MAXMS` (milliseconds) and `PERF` (`0/1/2`, same encoding as `_PERF`); values ≤ 0 or an absent key revert to the launch config. Unset `_RUNTIME` = off, and the driver behaves exactly as before.
 
 ```
-printf 'MS=8\nPERF=1\n' > "$BANNER_AUDIO_DIRECT_RUNTIME"   # → the running stream reopens at 8 ms, LOW_LATENCY
+printf 'MS=8\nPERF=1\n' > "$WINLITE_AUDIO_DIRECT_RUNTIME"   # → the running stream reopens at 8 ms, LOW_LATENCY
 ```
 
 #### Diagnosing without a special build
 
-`BANNER_AUDIO_DIRECT_LOG=1` turns on heartbeats plus buffer growth and decay
+`WINLITE_AUDIO_DIRECT_LOG=1` turns on heartbeats plus buffer growth and decay
 steps in a **release** build, tagged `DirectAudio` in logcat. The diagnostics
 build is still the place for per-call tracing, but a field report no longer
 requires shipping someone a different binary to find out what the buffer did.
@@ -293,7 +293,7 @@ Remaining, in order:
 |---|---|---|
 | 1 | **Route-change format handling** | A new route can have a different sample rate (Bluetooth is often 44.1 kHz where the speaker is 48) and a very different burst size. The rebuild needs to re-derive the resampler ratio and re-apply adaptive sizing, and coalesce repeated disconnect events. |
 | 2 | **Real surround** | Negotiate 6/8 channels and pass through where the device grants it (HDMI, USB DAC). On Android 13+, hand AAudio a real 5.1 stream with a channel mask and let the platform **Spatializer** do binaural rendering on headphones — genuine surround with the DSP cost carried by Android. With headroom now handled, this is the next real audio-quality win. |
-| 3 | **Microphone capture** *(shipped v1.3.2, behind `BANNER_AUDIO_DIRECT_MIC=1`; device-proven on Adreno 750)* | A second AAudio stream in the `INPUT` direction (48 kHz / float / stereo, `VOICE_COMMUNICATION` preset), the mirror of the render mixer: one shared input, opened lazily on the first capture stream, started on the first `Start`, distributing captured PCM to each capture voice's ring. Off by default because an enumerable-but-unopenable capture endpoint black-screens titles that probe the mic at startup. Proven with a real mic recording + TF2's in-game mic test. **Still to measure:** a real 2-player online voice round-trip, and whether the input stream knocks the output off the fast path on some devices (the one item that could threaten the latency floor) — monitor rather than assume. |
+| 3 | **Microphone capture** *(shipped v1.3.2, behind `WINLITE_AUDIO_DIRECT_MIC=1`; device-proven on Adreno 750)* | A second AAudio stream in the `INPUT` direction (48 kHz / float / stereo, `VOICE_COMMUNICATION` preset), the mirror of the render mixer: one shared input, opened lazily on the first capture stream, started on the first `Start`, distributing captured PCM to each capture voice's ring. Off by default because an enumerable-but-unopenable capture endpoint black-screens titles that probe the mic at startup. Proven with a real mic recording + TF2's in-game mic test. **Still to measure:** a real 2-player online voice round-trip, and whether the input stream knocks the output off the fast path on some devices (the one item that could threaten the latency floor) — monitor rather than assume. |
 
 Also wanted: verification on Mali hardware, and a lower preset rung in host apps so the 4 ms buffer is reachable from a UI rather than only by environment variable.
 

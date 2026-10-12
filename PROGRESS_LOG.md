@@ -14,10 +14,10 @@ in the "one build per Wine major" claim.
 
 No driver code touched.
 
-## 2026-08-31 — v1.3.2: microphone capture (`BANNER_AUDIO_DIRECT_MIC`) — device-proven
+## 2026-08-31 — v1.3.2: microphone capture (`WINLITE_AUDIO_DIRECT_MIC`) — device-proven
 
 Completes the parked capture half. A WASAPI capture endpoint backed by an AAudio `INPUT` stream, gated behind a
-new **`BANNER_AUDIO_DIRECT_MIC`** knob (env-read once at process attach, boolean like `_WATCHDOG`; default off).
+new **`WINLITE_AUDIO_DIRECT_MIC`** knob (env-read once at process attach, boolean like `_WATCHDOG`; default off).
 Unset = byte-identical to the render-only build: `get_endpoint_ids` exposes 0 capture endpoints, every capture op
 returns `AUDCLNT_E_DEVICE_INVALIDATED`, no AAudio input is ever touched — so no existing title changes behaviour,
 which is the safety mechanism against the GoW/DiRT-3 black screen (an enumerable-but-unopenable capture endpoint
@@ -43,13 +43,13 @@ is `requestStop`ped (recording indicator clears) but the stream stays open for r
 thunk fully wired (data/frames/flags/devpos/qpcpos); native + wow64 vtables and param structs unchanged in shape.
 Render path byte-for-byte unchanged when the mic is off.
 
-Config path (must match the app side): `getenv("BANNER_AUDIO_DIRECT_MIC")` in `read_global_config_from_env`,
-set in the container/shortcut env like every other `BANNER_AUDIO_DIRECT_*` env knob. NOT a live mailbox key —
+Config path (must match the app side): `getenv("WINLITE_AUDIO_DIRECT_MIC")` in `read_global_config_from_env`,
+set in the container/shortcut env like every other `WINLITE_AUDIO_DIRECT_*` env knob. NOT a live mailbox key —
 endpoint enumeration is a one-time startup event, so a mid-session toggle could not retroactively expose it.
 
 Device-proven (AYANEO Pocket FIT / Adreno 750, Android 14): a real 48 kHz mono-mic recording captured through the
 driver, and TF2's in-game Options → Voice "Test Microphone" meter tracking live mic input. Shipped in v1.3.2,
-opt-in via `BANNER_AUDIO_DIRECT_MIC=1`; default off stays byte-identical to v1.3.1.
+opt-in via `WINLITE_AUDIO_DIRECT_MIC=1`; default off stays byte-identical to v1.3.1.
 
 Still open (honest gaps): a real 2-player online voice round-trip (mic → VAC server → second player) is not yet
 validated; the input stream's effect on the render latency floor (the item that could knock the output off the
@@ -59,7 +59,7 @@ watchdog yet, unlike the render side).
 
 ## 2026-08-14 — v1.3.1: live in-game config ("mailbox")
 
-`BANNER_AUDIO_DIRECT_RUNTIME=<file>` opts into live control: a flat KEY=VALUE mailbox (MS/MAXMS/PERF) the host
+`WINLITE_AUDIO_DIRECT_RUNTIME=<file>` opts into live control: a flat KEY=VALUE mailbox (MS/MAXMS/PERF) the host
 rewrites while the game runs. A 1 s watcher thread (off the audio path) stats it and, on change, re-reads +
 rebuilds the stream via the existing reopen worker -> a setting lands WITHOUT relaunch (~77 ms, inaudible).
 Overrides applied at the top of mixer_open_stream so they win over launch config and re-apply on every reopen;
@@ -78,7 +78,7 @@ reset overrides on each read so an absent key reverts. Device stress-proven: PER
 ## 2026-08-14 — feat/live-runtime-config: live in-game "mailbox" (built, device test pending)
 
 Config is env-read once at attach, so cog changes need a relaunch. This branch adds a live channel:
-`BANNER_AUDIO_DIRECT_RUNTIME=<file>` names a flat KEY=VALUE mailbox (MS/MAXMS/PERF). A 1 s watcher thread
+`WINLITE_AUDIO_DIRECT_RUNTIME=<file>` names a flat KEY=VALUE mailbox (MS/MAXMS/PERF). A 1 s watcher thread
 (off the audio path) stats it; on change it re-reads and calls mixer_request_reopen, so a setting lands
 WITHOUT relaunch (the reopen worker rebuilds ~77 ms, inaudible). Overrides applied at the top of
 mixer_open_stream, so they win over launch config and re-apply on every reopen. Unset = feature off
@@ -420,7 +420,7 @@ to shrink at all:
 Suspension is not calm: the freeze re-baseline path also restarts both decay
 timers, so backgrounded wall-clock cannot buy a step down on resume.
 
-`BANNER_AUDIO_DIRECT_DECAY=0` restores grow-only. Defaults ON -- the floor
+`WINLITE_AUDIO_DIRECT_DECAY=0` restores grow-only. Defaults ON -- the floor
 guarantee bounds the worst case to handing back latency that growth took.
 Floor discovery logs via `DA_EVENT`; individual steps are TRACE only.
 
@@ -476,7 +476,7 @@ roadmap item with its own device test.
 
 ### Still open
 Device test for everything on this branch. The app also needs a plumbing fix:
-`persistAudioToShortcut` drops EVERY `BANNER_AUDIO_DIRECT_*` token and re-emits
+`persistAudioToShortcut` drops EVERY `WINLITE_AUDIO_DIRECT_*` token and re-emits
 only the six keys it knows, so hand-typed `_MS`/`_MAXMS`/`_DECAY` survive
 launches but are silently deleted the first time the in-game audio cog is
 applied. Fix = drop only the keys being rewritten.

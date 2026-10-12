@@ -143,7 +143,7 @@ struct directaudio_stream
 
 /* The device period reported to the guest. NOT const: it is half of the latency
  * the guest sees (get_latency returns buffer + period) and games size their own
- * buffers from it, so it is env-tunable via BANNER_AUDIO_DIRECT_PERIOD_MS. Read
+ * buffers from it, so it is env-tunable via WINLITE_AUDIO_DIRECT_PERIOD_MS. Read
  * once at process attach - get_device_period is asked before any stream exists,
  * so this cannot live in the per-stream config. */
 static REFERENCE_TIME def_period = 100000;   /* 10 ms in 100 ns units */
@@ -424,7 +424,7 @@ static int da_log = 0;
  * existing title changes behaviour. It exists because a capture endpoint that a
  * game can enumerate but not open black-screens titles that probe the mic at
  * startup (God of War, DiRT 3), so the capture path must be OFF unless a host that
- * actually wants the mic opts in with BANNER_AUDIO_DIRECT_MIC=1. Read once at
+ * actually wants the mic opts in with WINLITE_AUDIO_DIRECT_MIC=1. Read once at
  * process attach because get_endpoint_ids (a process-wide query with no stream) is
  * answered before any stream exists - a mid-session mailbox toggle could not
  * retroactively expose an endpoint the game already enumerated, so this is an
@@ -432,7 +432,7 @@ static int da_log = 0;
 static BOOL da_mic_enabled = FALSE;
 
 /* --- live runtime config ("mailbox") --------------------------------------
- * BANNER_AUDIO_DIRECT_RUNTIME names a flat KEY=VALUE file the host app rewrites
+ * WINLITE_AUDIO_DIRECT_RUNTIME names a flat KEY=VALUE file the host app rewrites
  * when the in-game cog changes a setting. A low-frequency watcher thread (1 s,
  * OFF the audio path) stats it and, on change, re-reads and rebuilds the stream
  * via the existing reopen worker - so a setting change lands WITHOUT relaunch.
@@ -703,7 +703,7 @@ static aaudio_data_callback_result_t mixer_cb(AAudioStream *aq, void *user,
         {
             /* Nothing has underrun for a while and the buffer sits above where it
              * started, so give a burst back and see if it holds. The floor is the
-             * open-time size (which honours BANNER_AUDIO_DIRECT_BF), raised by any
+             * open-time size (which honours WINLITE_AUDIO_DIRECT_BF), raised by any
              * level already proven unsustainable: decay only ever undoes growth,
              * it never probes below the latency the launch config asked for. */
             UINT64 quiet = da_quiet_ns * mx->decay_backoff;
@@ -901,7 +901,7 @@ static aaudio_result_t mixer_open_stream(struct directaudio_mixer *mx, AAudioStr
 
     /* Capacity headroom so adaptive has room to grow (builder-time only). One
      * output = far fewer xruns than N per-stream outputs, so a moderate initial
-     * buffer stays low-latency. BANNER_AUDIO_DIRECT_MBF/_BF override. */
+     * buffer stays low-latency. WINLITE_AUDIO_DIRECT_MBF/_BF override. */
     {
         int32_t cap_req = mx->max_buf_frames > 0 ? mx->max_buf_frames
                                                  : DA_DEFAULT_MAX_MS * MIX_OUT_RATE / 1000;
@@ -1116,13 +1116,13 @@ static void read_config_from_env(struct directaudio_stream *stream)
     const char *e;
 
     /* Engine-scoped keys per the app's NO-BLEED audio contract: the DirectAudio
-     * engine tag is DIRECT, so config arrives as BANNER_AUDIO_DIRECT_* in the
+     * engine tag is DIRECT, so config arrives as WINLITE_AUDIO_DIRECT_* in the
      * container/shortcut env (perf is 0=NONE, 1=LOW_LATENCY, 2=POWER_SAVING).
      * DEFAULT = LOW_LATENCY ("auto"): device finding is that under box64/FEX load
      * the low-latency high-priority audio thread stays scheduled and crackle-free,
      * while NONE runs a normal-priority thread the guest preempts -> choppy. So a
      * game with no preset set gets the smooth path out of the box. (An explicit
-     * BANNER_AUDIO_DIRECT_PERF still overrides below; buffers stay small - big
+     * WINLITE_AUDIO_DIRECT_PERF still overrides below; buffers stay small - big
      * buffers are incompatible with the low-latency fast path.) */
     stream->aa_perf = AAUDIO_PERFORMANCE_MODE_LOW_LATENCY;
     stream->aa_share = AAUDIO_SHARING_MODE_SHARED;
@@ -1130,24 +1130,24 @@ static void read_config_from_env(struct directaudio_stream *stream)
     /* Decay defaults ON. It cannot make the buffer smaller than the launch config
      * asked for, so the worst it can do is hand back latency that growth took -
      * and it stops probing once a title proves it needs the headroom. Set
-     * BANNER_AUDIO_DIRECT_DECAY=0 for the old grow-only behaviour. */
+     * WINLITE_AUDIO_DIRECT_DECAY=0 for the old grow-only behaviour. */
     stream->decay = TRUE;
     stream->target_buf_frames = 0;
     stream->max_buf_frames = 0;
     stream->target_ms = 0;
     stream->max_ms = 0;
 
-    if ((e = getenv("BANNER_AUDIO_DIRECT_PERF")))
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_PERF")))
     {
         int v = atoi(e);
         if (v == 1) stream->aa_perf = AAUDIO_PERFORMANCE_MODE_LOW_LATENCY;
         else if (v == 2) stream->aa_perf = AAUDIO_PERFORMANCE_MODE_POWER_SAVING;
         else stream->aa_perf = AAUDIO_PERFORMANCE_MODE_NONE;
     }
-    if ((e = getenv("BANNER_AUDIO_DIRECT_ADAPTIVE"))) stream->adaptive = atoi(e) != 0;
-    if ((e = getenv("BANNER_AUDIO_DIRECT_DECAY"))) stream->decay = atoi(e) != 0;
-    if ((e = getenv("BANNER_AUDIO_DIRECT_BF"))) stream->target_buf_frames = atoi(e);
-    if ((e = getenv("BANNER_AUDIO_DIRECT_MBF"))) stream->max_buf_frames = atoi(e);
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_ADAPTIVE"))) stream->adaptive = atoi(e) != 0;
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_DECAY"))) stream->decay = atoi(e) != 0;
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_BF"))) stream->target_buf_frames = atoi(e);
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_MBF"))) stream->max_buf_frames = atoi(e);
 
     /* Millisecond forms, for humans. These are read LAST and win over _BF/_MBF on
      * purpose: the host app writes _BF itself from whichever preset is selected,
@@ -1156,10 +1156,10 @@ static void read_config_from_env(struct directaudio_stream *stream)
      * dial in latency with no UI support at all. Anything <= 0 is ignored, which
      * makes an empty or malformed value fall back to the preset rather than to a
      * zero-length buffer. */
-    if ((e = getenv("BANNER_AUDIO_DIRECT_MS")) && atoi(e) > 0) stream->target_ms = atoi(e);
-    if ((e = getenv("BANNER_AUDIO_DIRECT_MAXMS")) && atoi(e) > 0) stream->max_ms = atoi(e);
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_MS")) && atoi(e) > 0) stream->target_ms = atoi(e);
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_MAXMS")) && atoi(e) > 0) stream->max_ms = atoi(e);
 
-    if ((e = getenv("BANNER_AUDIO_DIRECT_EXCLUSIVE")) && atoi(e) != 0)
+    if ((e = getenv("WINLITE_AUDIO_DIRECT_EXCLUSIVE")) && atoi(e) != 0)
         stream->aa_share = AAUDIO_SHARING_MODE_EXCLUSIVE;
 }
 
@@ -1186,7 +1186,7 @@ static int env_pos(const char *name, int fallback)
  * same period-chunk protocol as the render side in reverse. Opened LAZILY on the
  * first capture stream and STARTED only on the first Start (so the mic goes hot no
  * earlier than the game asks to record, and enumeration alone never touches it),
- * and the whole thing is dead code unless BANNER_AUDIO_DIRECT_MIC=1.
+ * and the whole thing is dead code unless WINLITE_AUDIO_DIRECT_MIC=1.
  *
  * Reusing the render ring fields keeps create_stream / the timer loop / the vtable
  * shared: a capture stream's producer writes at wri_offs_frames and the consumer
@@ -1599,9 +1599,9 @@ static void read_global_config_from_env(void)
 {
     int ms;
 
-    if ((ms = env_pos("BANNER_AUDIO_DIRECT_PERIOD_MS", 0)) > 0)
+    if ((ms = env_pos("WINLITE_AUDIO_DIRECT_PERIOD_MS", 0)) > 0)
         def_period = (REFERENCE_TIME)ms * 10000;
-    if ((ms = env_pos("BANNER_AUDIO_DIRECT_MINPERIOD_MS", 0)) > 0)
+    if ((ms = env_pos("WINLITE_AUDIO_DIRECT_MINPERIOD_MS", 0)) > 0)
         min_period = (REFERENCE_TIME)ms * 10000;
     /* WASAPI's contract: the minimum period cannot exceed the default one. A
      * caller who sets only one of the pair must not be able to invert them. */
@@ -1610,21 +1610,21 @@ static void read_global_config_from_env(void)
     {
         /* Boolean, so unlike the rest a literal 0 is meaningful and must not be
          * treated as "unset" - hence the explicit read instead of env_pos. */
-        const char *e = getenv("BANNER_AUDIO_DIRECT_WATCHDOG");
+        const char *e = getenv("WINLITE_AUDIO_DIRECT_WATCHDOG");
         if (e && *e) da_watchdog = atoi(e) != 0;
     }
     {
         /* Microphone capture gate. Boolean like _WATCHDOG (a literal 0 is
          * meaningful), so read it explicitly rather than via env_pos. Default off:
          * unset => zero capture endpoints, all capture ops DEVICE_INVALIDATED. */
-        const char *e = getenv("BANNER_AUDIO_DIRECT_MIC");
+        const char *e = getenv("WINLITE_AUDIO_DIRECT_MIC");
         if (e && *e) da_mic_enabled = atoi(e) != 0;
     }
     {
         /* The live-config mailbox: a file the host app rewrites in-game. Read it
          * once now so an existing file's values apply from the very first open;
          * the watcher thread (started in process attach) tracks later edits. */
-        const char *e = getenv("BANNER_AUDIO_DIRECT_RUNTIME");
+        const char *e = getenv("WINLITE_AUDIO_DIRECT_RUNTIME");
         if (e && *e)
         {
             /* Wine poisons strncpy; bounded memcpy + explicit NUL instead. */
@@ -1635,16 +1635,16 @@ static void read_global_config_from_env(void)
             da_read_runtime_file();
         }
     }
-    if ((ms = env_pos("BANNER_AUDIO_DIRECT_STALL_MS", 0)) > 0)
+    if ((ms = env_pos("WINLITE_AUDIO_DIRECT_STALL_MS", 0)) > 0)
         da_stall_ns = (UINT64)ms * 1000000ull;
-    if ((ms = env_pos("BANNER_AUDIO_DIRECT_DECAY_QUIET_MS", 0)) > 0)
+    if ((ms = env_pos("WINLITE_AUDIO_DIRECT_DECAY_QUIET_MS", 0)) > 0)
         da_quiet_ns = (UINT64)ms * 1000000ull;
-    if ((ms = env_pos("BANNER_AUDIO_DIRECT_DECAY_PUNISH_MS", 0)) > 0)
+    if ((ms = env_pos("WINLITE_AUDIO_DIRECT_DECAY_PUNISH_MS", 0)) > 0)
         da_punish_ns = (UINT64)ms * 1000000ull;
-    if ((ms = env_pos("BANNER_AUDIO_DIRECT_DECAY_MAXBACKOFF", 0)) > 0)
+    if ((ms = env_pos("WINLITE_AUDIO_DIRECT_DECAY_MAXBACKOFF", 0)) > 0)
         da_max_backoff = (unsigned int)ms;
 
-    da_log = env_pos("BANNER_AUDIO_DIRECT_LOG", 0);
+    da_log = env_pos("WINLITE_AUDIO_DIRECT_LOG", 0);
 
     DA_LOG("config: period %d ms min %d ms watchdog %d stall %d ms quiet %d ms"
            " punish %d ms maxbackoff %u",
@@ -1718,7 +1718,7 @@ static NTSTATUS unix_get_endpoint_ids(void *args)
     struct endpoint *endpoint = params->endpoints;
 
     params->default_idx = 0;
-    /* Always one render endpoint. A capture endpoint ONLY when BANNER_AUDIO_DIRECT_MIC
+    /* Always one render endpoint. A capture endpoint ONLY when WINLITE_AUDIO_DIRECT_MIC
      * is on: advertising a capture endpoint the game can enumerate but never open makes
      * it abandon audio init entirely and boot to a black screen (device-proven with God
      * of War and DiRT 3), which is why the render-only default exposes zero capture

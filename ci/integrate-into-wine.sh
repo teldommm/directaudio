@@ -1,9 +1,10 @@
 #!/bin/bash
-# Drops DirectAudio into a clean (DirectAudio-unaware) Wine 11 tree, i.e.
-# GameNative/proton-wine proton_11.0-2. Run BEFORE autogen.sh so the configure.ac
-# changes below are picked up by autoreconf.
+# Drops DirectAudio into a clean (DirectAudio-unaware) Wine tree: by default a
+# Wine 11 one (teldommm/proton-wine proton_11.0-2), or a Wine 9 / Proton 9 one
+# with DA_WINE_MAJOR=9 (teldommm/wine proton-9.0-arm64ec). Run BEFORE autogen.sh
+# so the configure.ac changes below are picked up by autoreconf.
 #
-#   ci/integrate-into-wine.sh <driver-repo-dir> <wine-tree-dir>
+#   [DA_WINE_MAJOR=9] ci/integrate-into-wine.sh <driver-repo-dir> <wine-tree-dir>
 #
 # Idempotent: re-running on an already integrated tree changes nothing.
 set -euo pipefail
@@ -14,10 +15,27 @@ DST="$WINE/dlls/winedirectaudio.drv"
 AC="$WINE/configure.ac"
 
 # --- 1. driver sources ------------------------------------------------------
-# Wine 11: the .drv is a generic unixlib host, so the unix implementation and its
-# Makefile.in are the whole driver.
+# DA_WINE_MAJOR picks the ABI flavour (default 11):
+#   11  Wine 11: the .drv is a generic unixlib host, so the unix implementation
+#       and its Makefile.in are the whole driver.
+#   9   Wine 9 / Proton 9: mmdevapi still wants a PE module per driver, so the
+#       wine9/ overlay (mmdevdrv.c, .spec, Makefile.in) goes in next to the same
+#       directaudio.c, which is built with WINE_MMDEVAPI_NO_MIDI_GET_DRIVER.
 mkdir -p "$DST"
-cp -v "$DRIVER/directaudio.c" "$DRIVER/Makefile.in" "$DST/"
+case "${DA_WINE_MAJOR:-11}" in
+    11)
+        cp -v "$DRIVER/directaudio.c" "$DRIVER/Makefile.in" "$DST/"
+        ;;
+    9)
+        cp -v "$DRIVER/directaudio.c" "$DST/"
+        cp -v "$DRIVER/wine9/Makefile.in" "$DRIVER/wine9/mmdevdrv.c" \
+              "$DRIVER/wine9/winedirectaudio.drv.spec" "$DST/"
+        ;;
+    *)
+        echo "unsupported DA_WINE_MAJOR=${DA_WINE_MAJOR} (expected 9 or 11)" >&2
+        exit 1
+        ;;
+esac
 
 # --- 2. configure.ac --------------------------------------------------------
 if grep -q 'dlls/winedirectaudio.drv' "$AC"; then

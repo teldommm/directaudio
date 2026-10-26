@@ -2900,12 +2900,22 @@ static NTSTATUS unix_wow64_get_capture_buffer(void *args)
 
 static NTSTATUS unix_wow64_is_format_supported(void *args)
 {
+    /* The 32-bit mirror of struct is_format_supported_params must match what the
+     * PE side of the target Wine passes. Wine 9's mmdevapi still carries the
+     * closest-match out pointer (fmt_out) between fmt_in and result, and its
+     * client.c reads `result` and CoTaskMemFree()s fmt_out afterwards; without
+     * the field `result` lands 4 bytes early, so a 32-bit guest would read an
+     * uninitialised HRESULT. The Wine 9 build defines
+     * WINE_MMDEVAPI_IS_FORMAT_SUPPORTED_FMT_OUT (see wine9/Makefile.in). */
     struct
     {
         PTR32 device;
         EDataFlow flow;
         AUDCLNT_SHAREMODE share;
         PTR32 fmt_in;
+#if defined(WINE_MMDEVAPI_IS_FORMAT_SUPPORTED_FMT_OUT)
+        PTR32 fmt_out;
+#endif
         HRESULT result;
     } *params32 = args;
     struct is_format_supported_params params =
@@ -2914,6 +2924,9 @@ static NTSTATUS unix_wow64_is_format_supported(void *args)
         .flow = params32->flow,
         .share = params32->share,
         .fmt_in = ULongToPtr(params32->fmt_in),
+#if defined(WINE_MMDEVAPI_IS_FORMAT_SUPPORTED_FMT_OUT)
+        .fmt_out = ULongToPtr(params32->fmt_out),
+#endif
     };
     unix_is_format_supported(&params);
     params32->result = params.result;

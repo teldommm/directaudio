@@ -1,6 +1,6 @@
 name: build driver (arm64ec hot-swap artifacts)
 
-# Builds ONLY dlls/winedirectaudio.drv against a clean GameNative/proton-wine tree
+# Builds ONLY dlls/winedirectaudio.drv against a clean teldommm/proton-wine tree
 # (proton_11.0-2), reusing that repo's own bionic/arm64ec toolchain script (NDK r27d +
 # bylaws llvm-mingw). The tree knows nothing about DirectAudio: ci/integrate-into-wine.sh
 # drops the driver in and wires configure.ac (AAudio check + makefile) before autogen.
@@ -22,7 +22,7 @@ on:
   workflow_dispatch:
 
 env:
-  PROTON_REPO: GameNative/proton-wine
+  PROTON_REPO: teldommm/proton-wine
   PROTON_REF: proton_11.0-2
   LABEL: wine11-arm64ec
 
@@ -35,7 +35,7 @@ jobs:
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
           df -h | head -2
 
-      - name: Checkout Wine tree (GameNative/proton-wine ${{ env.PROTON_REF }})
+      - name: Checkout Wine tree (${{ env.PROTON_REPO }} ${{ env.PROTON_REF }})
         uses: actions/checkout@v4
         with:
           repository: ${{ env.PROTON_REPO }}
@@ -153,7 +153,7 @@ jobs:
           set -eo pipefail
           # `source` so the arm64ec toolchain env the script exports (CC/CFLAGS/
           # CROSSCFLAGS/PATH/DLLTOOL/…) persists into this shell for the targeted
-          # make below. The script also configures and applies GameNative's Android patches.
+          # make below. The script also configures and applies the tree's Android patches.
           source build-scripts/build-step-arm64ec.sh --configure
           # Discover the exact build targets from the generated Makefile. PE files
           # live in a per-arch subdir ({aarch64,i386}-windows/); the unixlib .so sits
@@ -234,7 +234,7 @@ jobs:
           files: release/*
           body: |
             **DirectAudio hot-swap driver** — native Wine → Android AAudio (`winedirectaudio.drv`).
-            For **Proton 11 arm64ec** layers (Wine 11 ABI, GameNative `proton_11.0-2`); one build
+            For **Proton 11 arm64ec** layers (Wine 11 ABI, `teldommm/proton-wine` `proton_11.0-2`); one build
             for both 4KB and 16KB-page devices. The zip is the **complete 3-file driver set**,
             laid out to drop straight onto the Proton layer's `lib/wine/`:
             - `aarch64-windows/winedirectaudio.drv` — arm64ec PE, loaded for **64-bit** guest games

@@ -1,0 +1,12 @@
+MODULE    = winedirectaudio.drv
+UNIXLIB   = winedirectaudio.so
+IMPORTS   = dxguid uuid winmm user32 advapi32 ole32
+UNIX_LIBS    = $(AAUDIO_LIBS) $(PTHREAD_LIBS) -lm -llog
+# Wine 9's mmdevapi unixlib vtable has no midi_get_driver slot (added in Wine 11):
+# drop it so the table is the 36-entry Wine 9/10 layout. Its is_format_supported
+# call also still carries fmt_out, which the 32-bit (wow64) mirror must include.
+UNIX_CFLAGS  = -DWINE_MMDEVAPI_NO_MIDI_GET_DRIVER -DWINE_MMDEVAPI_IS_FORMAT_SUPPORTED_FMT_OUT
+
+SOURCES = \
+	directaudio.c \
+	mmdevdrv.c
